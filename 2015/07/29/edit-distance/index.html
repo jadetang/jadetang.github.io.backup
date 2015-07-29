@@ -1,0 +1,334 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>edit_distance | 我是一名程序员</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3, minimum-scale=1">
+    
+    <meta name="author" content="Tang Sicheng">
+    
+    <meta name="description" content="前言Edit Distance,中文叫做编辑距离，在文本处理等领域是一个重要的问题，以下是摘自于百度百科的定义
+
+编辑距离（Edit Distance），又称Levenshtein距离，是指两个字串之间，由一个转成另一个所需的最少编辑操作次数。许可的编辑操作包括将一个字符替换成另一个字符，插入一个字">
+    
+    
+    
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/pacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/pacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="我是一名程序员" title="我是一名程序员"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="我是一名程序员">我是一名程序员</a></h1>
+				<h2 class="blog-motto"></h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+					<li>
+					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="text" id="search" name="q" autocomplete="off" maxlength="20" placeholder="搜索" />
+						<input type="hidden" name="q" value="site:yoursite.com">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2015/07/29/edit-distance/" title="edit_distance" itemprop="url">edit_distance</a>
+  </h1>
+  <p class="article-author">By
+    
+      <a href="http://yoursite.com" title="Tang Sicheng">Tang Sicheng</a>
+    </p>
+  <p class="article-time">
+    <time datetime="2015-07-29T14:26:49.000Z" itemprop="datePublished">2015-07-29</time>
+    更新日期:<time datetime="2015-07-29T14:35:16.031Z" itemprop="dateModified">2015-07-29</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		<ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#前言"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#指令式编程范式下使用动态递归求解"><span class="toc-number">2.</span> <span class="toc-text">指令式编程范式下使用动态递归求解</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#状态定义"><span class="toc-number">2.1.</span> <span class="toc-text">状态定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#状态转移方程及其证明"><span class="toc-number">2.2.</span> <span class="toc-text">状态转移方程及其证明</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#函数式编程范式下的求解"><span class="toc-number">2.3.</span> <span class="toc-text">函数式编程范式下的求解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#对问题建立模型"><span class="toc-number">2.3.1.</span> <span class="toc-text">对问题建立模型</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#问题求解"><span class="toc-number">2.3.2.</span> <span class="toc-text">问题求解</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#总结"><span class="toc-number">2.4.</span> <span class="toc-text">总结</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#参考书籍"><span class="toc-number">2.5.</span> <span class="toc-text">参考书籍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#此问题的Haskell解法，来自于Haskell:_The_Craft_of_Functional_Programming一书"><span class="toc-number">2.6.</span> <span class="toc-text">此问题的Haskell解法，来自于Haskell: The Craft of Functional Programming一书</span></a></li></ol></li></ol>
+		</div>
+		
+		<h2 id="前言">前言</h2><p>Edit Distance,中文叫做编辑距离，在文本处理等领域是一个重要的问题，以下是摘自于<a href="http://baike.baidu.com/link?url=oyLj3uMwU0qTBnj8C8cgO4NIBT9O7fXEMk_0W1x9wK9_DdmrIPWQqmsjiyycVqfqqfBsiQ6V4hNY24r9yeq6ea" target="_blank" rel="external">百度百科</a>的定义</p>
+<blockquote>
+<p>编辑距离（Edit Distance），又称Levenshtein距离，是指两个字串之间，由一个转成另一个所需的最少编辑操作次数。许可的编辑操作包括将一个字符替换成另一个字符，插入一个字符，删除一个字符。</p>
+</blockquote>
+<p>分别用R(replace)，I(insert)，D(delete)，M(Match)代表替换、插入、删除、匹配操作,<em>vintner</em>到<em>writers</em>直接的转换过程，可以如图所示<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/edit%20distance.JPG" alt="编辑距离"><br>从图中可以看出，<em>vintner</em>到<em>writeres</em>的最短编辑距离为5。所谓的编辑距离的问题即求解两个字符串之间的最小距离，用函数名称定义如下<br><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">minDistance</span><span class="params">(String word1, String word2)</span> </span>&#123;</span><br></pre></td></tr></table></figure></p>
+<h2 id="指令式编程范式下使用动态递归求解">指令式编程范式下使用动态递归求解</h2><h3 id="状态定义">状态定义</h3><p>这一类问题，可以通过动态递归的方式来解决。</p>
+<blockquote>
+<p><strong>定义</strong> 对于两个字符串S<sub>1</sub>和S<sub>2</sub>,D(i,j)表示两个字符子串S<sub>1</sub>[1..i]和S<sub>2</sub>[1..j]之间的最短编辑距离。</p>
+</blockquote>
+<p>对于两个字符串,长度分别为n和m,那么为了D(n,m)就是他们的之间的最短编辑距离，为了计算D(n,m)需要计算所有的D(i,j)，其中 0&lt;=i&lt;=M, 0&lt;=j&lt;=N。对于基本情况，可以得到<br>D(i,0)=0,D(0,j)=0</p>
+<h3 id="状态转移方程及其证明">状态转移方程及其证明</h3><p>动态递归的中，确定了初始状态以后，就需要推倒出问题的状态转移方程，编辑距离问题的状态转移方程是:<br>D(i,j)= min[D(i-1,j)+1,D(i,j-1)+1,D(i-1,j-1)+t(i,j)]<br>其中<br><figure class="highlight java"><table><tr><td class="code"><pre><span class="line">t(i,j) = S1.charAt(i) == S2.charAt(j) ? <span class="number">0</span> : <span class="number">1</span></span><br></pre></td></tr></table></figure></p>
+<p>以下是证明</p>
+<blockquote>
+<p><strong>命题1</strong> D(i,j)的取值，只可能为 D(i-1,j)+1, D(i,j-1)+1, D(i-1,j-1)+t(i,j) 这三者中的一个，没有其他可能。</p>
+</blockquote>
+<p>考虑把S<sub>1</sub>[1..i]转换到S<sub>2</sub>[1..j]这个过程，对于最后一步编辑，这一步的动作只可能是R,I,D,M中的一种。现假设最后一步编辑的动作是I，即表示把S<sub>2</sub>[j]插入到正在转化的S<sub>1</sub>的末尾。那么对于这个动作之前的连续的编辑动作，表示的是把S<sub>1</sub>[1..i]转换到S<sub>2</sub>[1..j-1]这个过程，这个过程的最短编辑距离根据之前的定义表示为D(i,j-1),那么由此可以得出D(i,j)=D(i,j-1)+1<br>同理，对于最后一步动作是D的情况，D(i,j)=D(i-1,j)+1。而对于最后一步东西是M或者R的情况，$D(i,j)=D(i-1,j-1)+t(i,j)$。结合命题1和D(i,j)的定义，状态转移方程的正确性得正。<br>在<a href="https://leetcode.com/problems/edit-distance/" target="_blank" rel="external">LeetCode</a>上，就有一道这样的题目，以下是用上述动态规划的思路的解法，已经AC<br><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">minDistance</span><span class="params">(String word1, String word2)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">int</span> w1length = word1.length();</span><br><span class="line">        <span class="keyword">int</span> w2length = word2.length();</span><br><span class="line">        <span class="keyword">int</span>[][] dp = <span class="keyword">new</span> <span class="keyword">int</span>[w1length+<span class="number">1</span>][w2length+<span class="number">1</span>];</span><br><span class="line">        <span class="keyword">for</span>(<span class="keyword">int</span> l = <span class="number">0</span>; l&lt;= w2length; l++ )&#123;</span><br><span class="line">            dp[<span class="number">0</span>][l] = l;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">for</span>(<span class="keyword">int</span> l = <span class="number">0</span>; l&lt;= w1length; l++ )&#123;</span><br><span class="line">            dp[l][<span class="number">0</span>] = l;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">for</span>(<span class="keyword">int</span> i = <span class="number">1</span>; i&lt;=w1length; i++)&#123;</span><br><span class="line">            <span class="keyword">for</span>(<span class="keyword">int</span> j=<span class="number">1</span>; j&lt;=w2length;j++)&#123;</span><br><span class="line">                <span class="keyword">if</span>(word1.charAt(i-<span class="number">1</span>) == word2.charAt(j-<span class="number">1</span>))&#123;</span><br><span class="line">                    dp[i][j] = Math.min(dp[i-<span class="number">1</span>][j-<span class="number">1</span>],Math.min(dp[i-<span class="number">1</span>][j]+<span class="number">1</span>,dp[i][j-<span class="number">1</span>]+<span class="number">1</span>));</span><br><span class="line">                &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">                   dp[i][j] = Math.min(dp[i-<span class="number">1</span>][j-<span class="number">1</span>]+<span class="number">1</span>,Math.min(dp[i-<span class="number">1</span>][j]+<span class="number">1</span>,dp[i][j-<span class="number">1</span>]+<span class="number">1</span>));</span><br><span class="line"></span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> dp[w1length][w2length];</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<h3 id="函数式编程范式下的求解">函数式编程范式下的求解</h3><p>之前说到的动态递归的算法，都在指令式编程即<a href="https://en.wikipedia.org/wiki/Imperative_programming" target="_blank" rel="external">imperative programming</a>范式下讨论的，但是在程序开发中，还有一种范式称为函数式编程即<a href="https://en.wikipedia.org/wiki/Functional_programming" target="_blank" rel="external">functional programming</a>。scala作为一种在jvm上运行的语句，既有函数式又有面对对象的特点，下面我们用函数式的方式，用scala来求解最小编辑距离问题。</p>
+<h4 id="对问题建立模型">对问题建立模型</h4><p>这里的模型，指的是如何将这个问题model成程序中的类型，这里的类型包括scala中内置的数据类型，也包括自定义的类型，以下是我根据几种编辑步骤定义的类型:<br><figure class="highlight scala"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">trait</span> <span class="title">Edit</span></span><br><span class="line"></span><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">Replace</span>(</span><span class="function"><span class="keyword">val</span> <span class="title">from</span>:</span> <span class="type">Char</span>, <span class="function"><span class="keyword">val</span> <span class="title">to</span>:</span> <span class="type">Char</span>) <span class="keyword">extends</span> <span class="type">Edit</span></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">Match</span>(</span><span class="function"><span class="keyword">val</span> <span class="title">c</span>:</span> <span class="type">Char</span>) <span class="keyword">extends</span> <span class="type">Edit</span></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">Delete</span>(</span><span class="function"><span class="keyword">val</span> <span class="title">c</span>:</span> <span class="type">Char</span>) <span class="keyword">extends</span> <span class="type">Edit</span></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">Insert</span>(</span><span class="function"><span class="keyword">val</span> <span class="title">c</span>:</span> <span class="type">Char</span>) <span class="keyword">extends</span> <span class="type">Edit</span></span><br></pre></td></tr></table></figure></p>
+<p>每个case class对应一种编辑动作，所有的case class都继承自Edit这个特质，为了求解两个字符串之间的最小编辑距离，先求解一个字符串到另外一个字符串需要经过多少步的编辑步骤，函数的定义如下:<br><figure class="highlight scala"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">transform</span>(</span>s1: <span class="type">List</span>[<span class="type">Char</span>], s2: <span class="type">List</span>[<span class="type">Char</span>]): <span class="type">List</span>[<span class="type">Edit</span>]</span><br></pre></td></tr></table></figure></p>
+<p>注：在scala中，String可以很方便的转化成List[Char]。</p>
+<h4 id="问题求解">问题求解</h4><p>对于base case,当s2为空字符串的时候，s1只需要把每个字符给删掉，就能转换成s2；当s1为空字符串的时候，只需要把s2中所有的字符按次序插入s1，就能转化成s1。把这段话语直白的翻译成代码，可以得到函数的部分实现:<br><figure class="highlight scala"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">transform</span>(</span>s1: <span class="type">List</span>[<span class="type">Char</span>], s2: <span class="type">List</span>[<span class="type">Char</span>]): <span class="type">List</span>[<span class="type">Edit</span>] = &#123;</span><br><span class="line">  (s1, s2) <span class="keyword">match</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> (s1, <span class="type">Nil</span>) =&gt; s1 map (x =&gt; <span class="type">Delete</span>(x))</span><br><span class="line">    <span class="keyword">case</span> (<span class="type">Nil</span>, s2) =&gt; s2 map (x =&gt; <span class="type">Insert</span>(x))</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>处理了base case，需要处理更加一般的情况，当s1和s2的第一个字符相等的时候，则生成一个Match动作，接着处理剩下的字符子串。如果s1和s2的第一个字符串不相等的时候，则有三种情况:</p>
+<ol>
+<li>删掉s1的第一个字符，将剩下字符子串s1[2..n]转化成s2。</li>
+<li>插入s2的第一个字符，将s1转化成s2剩下的字符子串s2[2..n]。</li>
+<li>将s1的第一个字符替换成s2的第一个字符，将字符子串s1[2..n]转化成s2[2..n]。</li>
+</ol>
+<p>综上，我们可以得到tranform函数的完整实现<br><figure class="highlight scala"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">transform</span>(</span>s1: <span class="type">List</span>[<span class="type">Char</span>], s2: <span class="type">List</span>[<span class="type">Char</span>]): <span class="type">List</span>[<span class="type">Edit</span>] = &#123;</span><br><span class="line">  (s1, s2) <span class="keyword">match</span> &#123;</span><br><span class="line">    <span class="keyword">case</span> (s1, <span class="type">Nil</span>) =&gt; s1 map (x =&gt; <span class="type">Delete</span>(x))</span><br><span class="line">    <span class="keyword">case</span> (<span class="type">Nil</span>, s2) =&gt; s2 map (x =&gt; <span class="type">Insert</span>(x))</span><br><span class="line">    <span class="keyword">case</span> (x :: xs, y :: ys) =&gt; <span class="keyword">if</span> (x == y) &#123;</span><br><span class="line">      <span class="type">Match</span>(y) :: transform(xs, ys) <span class="comment">//s1和s2的第一个字符相等的时候，则生成一个Match动作</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span> &#123;</span><br><span class="line">      best(<span class="type">List</span>(<span class="type">Delete</span>(x) :: transform(xs, s2), <span class="type">Insert</span>(y) :: transform(s1, ys), <span class="type">Replace</span>(x, y) :: transform(xs, ys)))</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>其中best函数求解多个List[Edit]中的最优值，函数的实现为:<br><figure class="highlight scala"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">best</span>(</span>edits: <span class="type">List</span>[<span class="type">List</span>[<span class="type">Edit</span>]]): <span class="type">List</span>[<span class="type">Edit</span>] = edits <span class="keyword">match</span> &#123;</span><br><span class="line">  <span class="keyword">case</span> (x :: <span class="type">Nil</span>) =&gt; x</span><br><span class="line">  <span class="keyword">case</span> (x :: xs) =&gt; &#123;</span><br><span class="line">    <span class="function"><span class="keyword">val</span> <span class="title">b</span> =</span> best(xs)</span><br><span class="line">    <span class="keyword">if</span> (cost(x) &lt;= cost(b)) x <span class="keyword">else</span> b</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>cost函数求解一个List[Edit]中所需要的编辑步骤，因为Match步骤其实是不需要做任何动作的，那么计算cost的时候，只需要把Match步骤给过滤掉就行，在scala中可以用一行函数来实现:<br><figure class="highlight scala"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">cost</span>(</span>edits: <span class="type">List</span>[<span class="type">Edit</span>]): <span class="type">Int</span> = edits.filterNot(x =&gt; x.isInstanceOf[<span class="type">Match</span>]).length</span><br></pre></td></tr></table></figure></p>
+<p>我们可以测试一下,edits记录的是转换过程。<br><figure class="highlight"><table><tr><td class="code"><pre><span class="line">val s1 = "vintner"</span><br><span class="line">val s2 = "writers"</span><br><span class="line">val edits = transform(s1.toList, s2.toList)</span><br><span class="line">val result = s"edit distance between </span><br><span class="line"></span><br><span class="line">----------</span><br><span class="line">$s1 and $s2 is" + cost(edits)</span><br><span class="line">//result</span><br><span class="line">edits: List[Edit] = List(Insert(w), Replace(v,r), Match(i), Delete(n), Match(t), Delete(n), Match(e), Match(r), Insert(s))</span><br><span class="line">result: String = edit distance between vintner and writers is 5</span><br></pre></td></tr></table></figure></p>
+<h3 id="总结">总结</h3><p>至此，这道问题用scala就解决了，其实所做的无非就是把建立模型和解决问题的思考过程非常直白的翻译成代码，因为函数式语言描述的更多是数学，和人类的思考过程更加相近，而过程式编程描述的更多的是机器语言，对于一些问题的求解没有那么的直观。从Edit Distance这道题目的两种解法就能够清楚的看出来。至于两种方法的效率比较，则已经超出我的能力范围了。函数式编程的算法分析，算是比较偏的一门课程了，我也没有涉猎过。</p>
+<h3 id="参考书籍">参考书籍</h3><ol>
+<li><a href="http://www.amazon.cn/Algorithms-on-Strings-Trees-and-Sequences-Computer-Science-and-Computational-Biology-Gusfield-Dan/dp/0521585198/ref=sr_1_2?ie=UTF8&amp;qid=1438178277&amp;sr=8-2&amp;keywords=algorithm+on+String" target="_blank" rel="external">Algorithms on Strings, Trees and Sequences: Computer Science and Computational Biology</a></li>
+<li><a href="http://www.amazon.cn/Haskell%E5%87%BD%E6%95%B0%E5%BC%8F%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80-%E6%B1%A4%E6%99%AE%E6%A3%AE/dp/B010EJD9OU/ref=sr_1_1?ie=UTF8&amp;qid=1438178329&amp;sr=8-1&amp;keywords=haskell+the+craft+of+functional+programming" target="_blank" rel="external">Haskell: The Craft of Functional Programming</a></li>
+</ol>
+<h3 id="此问题的Haskell解法，来自于Haskell:_The_Craft_of_Functional_Programming一书">此问题的Haskell解法，来自于<em>Haskell: The Craft of Functional Programming</em>一书</h3><figure class="highlight haskell"><table><tr><td class="code"><pre><span class="line"><span class="typedef"><span class="keyword">data</span> <span class="type">Edit</span> = <span class="type">Change</span> <span class="type">Char</span>|</span></span><br><span class="line">            <span class="type">Copy</span>|</span><br><span class="line">            <span class="type">Delete</span>|</span><br><span class="line">            <span class="type">Insert</span> <span class="type">Char</span>|</span><br><span class="line">            <span class="type">Kill</span></span><br><span class="line">            <span class="keyword">deriving</span>(<span class="type">Eq</span>,<span class="type">Show</span>)</span><br><span class="line"></span><br><span class="line"><span class="title">transform</span> :: <span class="type">String</span>-&gt;<span class="type">String</span>-&gt;[<span class="type">Edit</span>]</span><br><span class="line"><span class="title">transform</span> [] [] = []</span><br><span class="line"><span class="title">transform</span> xs [] = [<span class="type">Kill</span>]</span><br><span class="line"><span class="title">transfrom</span> [] ys = map <span class="type">Insert</span> ys</span><br><span class="line"><span class="title">transform</span> (x:xs)(y:ys)</span><br><span class="line">    | x == y = <span class="type">Copy</span>: : transform xs ys</span><br><span class="line">    | otherwise = best [<span class="type">Delete</span> : transform xs (y:ys), <span class="type">Insert</span> y : transform (x:xs) ys, <span class="type">Change</span> y : transform xs ys]</span><br><span class="line"><span class="title">best</span> :: [[<span class="type">Edit</span>]] -&gt;[<span class="type">Edit</span>]</span><br><span class="line"><span class="title">best</span> [x] = x</span><br><span class="line"><span class="title">best</span> (x:xs)</span><br><span class="line">    | cost x &lt;= cost b = x</span><br><span class="line">    | otherwise = b</span><br><span class="line">        <span class="keyword">where</span> </span><br><span class="line">        b = best xs</span><br><span class="line"><span class="title">cost</span> :: [<span class="type">Edit</span>] -&gt; <span class="type">Int</span></span><br><span class="line"><span class="title">cost</span> = length . filter(/=<span class="type">Copy</span>)</span><br></pre></td></tr></table></figure>  
+	</div>
+		<footer class="article-footer clearfix">
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/算法/">算法</a>
+  </div>
+
+
+
+
+<div class="article-share" id="share">
+
+  <div data-url="http://yoursite.com/2015/07/29/edit-distance/" data-title="edit_distance | 我是一名程序员" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+
+<div class="next">
+<a href="/2015/07/25/20150724/"  title="我的第一篇博客，总结一下在YY一年的生活。">
+ <strong>NEXT:</strong><br/> 
+ <span>我的第一篇博客，总结一下在YY一年的生活。
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+  <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#前言"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#指令式编程范式下使用动态递归求解"><span class="toc-number">2.</span> <span class="toc-text">指令式编程范式下使用动态递归求解</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#状态定义"><span class="toc-number">2.1.</span> <span class="toc-text">状态定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#状态转移方程及其证明"><span class="toc-number">2.2.</span> <span class="toc-text">状态转移方程及其证明</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#函数式编程范式下的求解"><span class="toc-number">2.3.</span> <span class="toc-text">函数式编程范式下的求解</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#对问题建立模型"><span class="toc-number">2.3.1.</span> <span class="toc-text">对问题建立模型</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#问题求解"><span class="toc-number">2.3.2.</span> <span class="toc-text">问题求解</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#总结"><span class="toc-number">2.4.</span> <span class="toc-text">总结</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#参考书籍"><span class="toc-number">2.5.</span> <span class="toc-text">参考书籍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#此问题的Haskell解法，来自于Haskell:_The_Craft_of_Functional_Programming一书"><span class="toc-number">2.6.</span> <span class="toc-text">此问题的Haskell解法，来自于Haskell: The Craft of Functional Programming一书</span></a></li></ol></li></ol>
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/生活/" title="生活">生活<sup>1</sup></a></li>
+		
+			<li><a href="/tags/算法/" title="算法">算法<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font clearfix">
+		
+		<a href="http://weibo.com/jadetang" target="_blank" title="weibo"></a>
+		
+		
+		
+		<a href="https://github.com/jadetang" target="_blank" title="github"></a>
+		
+		
+		
+        <a href="https://www.linkedin.com/in/tangsicheng" target="_blank" title="linkedin"></a>
+        
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/A-limon/pacman" target="_blank" title="Pacman">Pacman</a> © 2015 
+		
+		<a href="http://yoursite.com" target="_blank" title="Tang Sicheng">Tang Sicheng</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.1.0.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="#textlogo" class="article-back-to-top" title="Top"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+  </body>
+</html>
