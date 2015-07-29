@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   
-    <title>edit_distance | 我是一名程序员</title>
+    <title>Edit Distance问题在两种编程范式下的求解 | 我是一名程序员</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3, minimum-scale=1">
     
     <meta name="author" content="Tang Sicheng">
@@ -67,7 +67,7 @@
 		<header class="article-info clearfix">
   <h1 itemprop="name">
     
-      <a href="/2015/07/29/edit-distance/" title="edit_distance" itemprop="url">edit_distance</a>
+      <a href="/2015/07/29/edit-distance/" title="Edit Distance问题在两种编程范式下的求解" itemprop="url">Edit Distance问题在两种编程范式下的求解</a>
   </h1>
   <p class="article-author">By
     
@@ -75,7 +75,7 @@
     </p>
   <p class="article-time">
     <time datetime="2015-07-29T14:26:49.000Z" itemprop="datePublished">2015-07-29</time>
-    更新日期:<time datetime="2015-07-29T14:35:16.031Z" itemprop="dateModified">2015-07-29</time>
+    更新日期:<time datetime="2015-07-29T14:38:27.437Z" itemprop="dateModified">2015-07-29</time>
     
   </p>
 </header>
@@ -91,7 +91,7 @@
 <blockquote>
 <p>编辑距离（Edit Distance），又称Levenshtein距离，是指两个字串之间，由一个转成另一个所需的最少编辑操作次数。许可的编辑操作包括将一个字符替换成另一个字符，插入一个字符，删除一个字符。</p>
 </blockquote>
-<p>分别用R(replace)，I(insert)，D(delete)，M(Match)代表替换、插入、删除、匹配操作,<em>vintner</em>到<em>writers</em>直接的转换过程，可以如图所示<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/edit%20distance.JPG" alt="编辑距离"><br>从图中可以看出，<em>vintner</em>到<em>writeres</em>的最短编辑距离为5。所谓的编辑距离的问题即求解两个字符串之间的最小距离，用函数名称定义如下<br><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">minDistance</span><span class="params">(String word1, String word2)</span> </span>&#123;</span><br></pre></td></tr></table></figure></p>
+<p>分别用R(replace)，I(insert)，D(delete)，M(Match)代表替换、插入、删除、匹配操作,<em>vintner</em>到<em>writers</em>直接的转换过程，可以如图所示<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/edit%20distance.JPG" alt="编辑距离"><br>从图中可以看出，<em>vintner</em>到<em>writeres</em>的最短编辑距离为5。所谓的编辑距离的问题即求解两个字符串之间的最小距离，用函数名称定义如下<br><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">minDistance</span><span class="params">(String word1, String word2)</span> </span>&#123;&#125;</span><br></pre></td></tr></table></figure></p>
 <h2 id="指令式编程范式下使用动态递归求解">指令式编程范式下使用动态递归求解</h2><h3 id="状态定义">状态定义</h3><p>这一类问题，可以通过动态递归的方式来解决。</p>
 <blockquote>
 <p><strong>定义</strong> 对于两个字符串S<sub>1</sub>和S<sub>2</sub>,D(i,j)表示两个字符子串S<sub>1</sub>[1..i]和S<sub>2</sub>[1..j]之间的最短编辑距离。</p>
@@ -123,7 +123,7 @@
 <li><a href="http://www.amazon.cn/Algorithms-on-Strings-Trees-and-Sequences-Computer-Science-and-Computational-Biology-Gusfield-Dan/dp/0521585198/ref=sr_1_2?ie=UTF8&amp;qid=1438178277&amp;sr=8-2&amp;keywords=algorithm+on+String" target="_blank" rel="external">Algorithms on Strings, Trees and Sequences: Computer Science and Computational Biology</a></li>
 <li><a href="http://www.amazon.cn/Haskell%E5%87%BD%E6%95%B0%E5%BC%8F%E7%BC%96%E7%A8%8B%E5%9F%BA%E7%A1%80-%E6%B1%A4%E6%99%AE%E6%A3%AE/dp/B010EJD9OU/ref=sr_1_1?ie=UTF8&amp;qid=1438178329&amp;sr=8-1&amp;keywords=haskell+the+craft+of+functional+programming" target="_blank" rel="external">Haskell: The Craft of Functional Programming</a></li>
 </ol>
-<h3 id="此问题的Haskell解法，来自于Haskell:_The_Craft_of_Functional_Programming一书">此问题的Haskell解法，来自于<em>Haskell: The Craft of Functional Programming</em>一书</h3><figure class="highlight haskell"><table><tr><td class="code"><pre><span class="line"><span class="typedef"><span class="keyword">data</span> <span class="type">Edit</span> = <span class="type">Change</span> <span class="type">Char</span>|</span></span><br><span class="line">            <span class="type">Copy</span>|</span><br><span class="line">            <span class="type">Delete</span>|</span><br><span class="line">            <span class="type">Insert</span> <span class="type">Char</span>|</span><br><span class="line">            <span class="type">Kill</span></span><br><span class="line">            <span class="keyword">deriving</span>(<span class="type">Eq</span>,<span class="type">Show</span>)</span><br><span class="line"></span><br><span class="line"><span class="title">transform</span> :: <span class="type">String</span>-&gt;<span class="type">String</span>-&gt;[<span class="type">Edit</span>]</span><br><span class="line"><span class="title">transform</span> [] [] = []</span><br><span class="line"><span class="title">transform</span> xs [] = [<span class="type">Kill</span>]</span><br><span class="line"><span class="title">transfrom</span> [] ys = map <span class="type">Insert</span> ys</span><br><span class="line"><span class="title">transform</span> (x:xs)(y:ys)</span><br><span class="line">    | x == y = <span class="type">Copy</span>: : transform xs ys</span><br><span class="line">    | otherwise = best [<span class="type">Delete</span> : transform xs (y:ys), <span class="type">Insert</span> y : transform (x:xs) ys, <span class="type">Change</span> y : transform xs ys]</span><br><span class="line"><span class="title">best</span> :: [[<span class="type">Edit</span>]] -&gt;[<span class="type">Edit</span>]</span><br><span class="line"><span class="title">best</span> [x] = x</span><br><span class="line"><span class="title">best</span> (x:xs)</span><br><span class="line">    | cost x &lt;= cost b = x</span><br><span class="line">    | otherwise = b</span><br><span class="line">        <span class="keyword">where</span> </span><br><span class="line">        b = best xs</span><br><span class="line"><span class="title">cost</span> :: [<span class="type">Edit</span>] -&gt; <span class="type">Int</span></span><br><span class="line"><span class="title">cost</span> = length . filter(/=<span class="type">Copy</span>)</span><br></pre></td></tr></table></figure>  
+<h3 id="此问题的Haskell解法，来自于Haskell:_The_Craft_of_Functional_Programming一书">此问题的Haskell解法，来自于<em>Haskell: The Craft of Functional Programming</em>一书</h3><figure class="highlight haskell"><table><tr><td class="code"><pre><span class="line"><span class="typedef"><span class="keyword">data</span> <span class="type">Edit</span> = <span class="type">Change</span> <span class="type">Char</span>|</span></span><br><span class="line">            <span class="type">Copy</span>|</span><br><span class="line">            <span class="type">Delete</span>|</span><br><span class="line">            <span class="type">Insert</span> <span class="type">Char</span>|</span><br><span class="line">            <span class="type">Kill</span></span><br><span class="line">            <span class="keyword">deriving</span>(<span class="type">Eq</span>,<span class="type">Show</span>)</span><br><span class="line"><span class="title">transform</span> :: <span class="type">String</span>-&gt;<span class="type">String</span>-&gt;[<span class="type">Edit</span>]</span><br><span class="line"><span class="title">transform</span> [] [] = []</span><br><span class="line"><span class="title">transform</span> xs [] = [<span class="type">Kill</span>]</span><br><span class="line"><span class="title">transfrom</span> [] ys = map <span class="type">Insert</span> ys</span><br><span class="line"><span class="title">transform</span> (x:xs)(y:ys)</span><br><span class="line">    | x == y = <span class="type">Copy</span>: : transform xs ys</span><br><span class="line">    | otherwise = best [<span class="type">Delete</span> : transform xs (y:ys), <span class="type">Insert</span> y : transform (x:xs) ys, <span class="type">Change</span> y : transform xs ys]</span><br><span class="line"><span class="title">best</span> :: [[<span class="type">Edit</span>]] -&gt;[<span class="type">Edit</span>]</span><br><span class="line"><span class="title">best</span> [x] = x</span><br><span class="line"><span class="title">best</span> (x:xs)</span><br><span class="line">    | cost x &lt;= cost b = x</span><br><span class="line">    | otherwise = b</span><br><span class="line">        <span class="keyword">where</span> </span><br><span class="line">        b = best xs</span><br><span class="line"><span class="title">cost</span> :: [<span class="type">Edit</span>] -&gt; <span class="type">Int</span></span><br><span class="line"><span class="title">cost</span> = length . filter(/=<span class="type">Copy</span>)</span><br></pre></td></tr></table></figure>  
 	</div>
 		<footer class="article-footer clearfix">
 
@@ -137,26 +137,13 @@
 
 <div class="article-share" id="share">
 
-  <div data-url="http://yoursite.com/2015/07/29/edit-distance/" data-title="edit_distance | 我是一名程序员" data-tsina="null" class="share clearfix">
+  <div data-url="http://yoursite.com/2015/07/29/edit-distance/" data-title="Edit Distance问题在两种编程范式下的求解 | 我是一名程序员" data-tsina="null" class="share clearfix">
   </div>
 
 </div>
 </footer>   	       
 	</article>
 	
-<nav class="article-nav clearfix">
- 
-
-<div class="next">
-<a href="/2015/07/25/20150724/"  title="我的第一篇博客，总结一下在YY一年的生活。">
- <strong>NEXT:</strong><br/> 
- <span>我的第一篇博客，总结一下在YY一年的生活。
-</span>
-</a>
-</div>
-
-</nav>
-
 	
 </div>  
       <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
@@ -176,8 +163,6 @@
 <div class="tagslist">
 	<p class="asidetitle">标签</p>
 		<ul class="clearfix">
-		
-			<li><a href="/tags/生活/" title="生活">生活<sup>1</sup></a></li>
 		
 			<li><a href="/tags/算法/" title="算法">算法<sup>1</sup></a></li>
 		
