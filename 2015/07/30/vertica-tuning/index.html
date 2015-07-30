@@ -1,0 +1,333 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>Vertica数据库查询优化 | 我是一名程序员</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3, minimum-scale=1">
+    
+    <meta name="author" content="Tang Sicheng">
+    
+    <meta name="description" content="vertica是惠普公司推出的列式分布式数据库，在OLAP领域有其独到的地方，目前社区版免费，但是只能存放1T的数据。我在工作中维护的bi系统后端就是使用的vertica数据库，平时也经常需要对于数据库的查询进行一些优化，所以写下这篇博客记录一下。
+1. 定位问题所谓的数据库调优、程序优化之类的工作">
+    
+    
+    
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/pacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/pacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="我是一名程序员" title="我是一名程序员"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="我是一名程序员">我是一名程序员</a></h1>
+				<h2 class="blog-motto"></h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+					<li>
+					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="text" id="search" name="q" autocomplete="off" maxlength="20" placeholder="搜索" />
+						<input type="hidden" name="q" value="site:yoursite.com">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2015/07/30/vertica-tuning/" title="Vertica数据库查询优化" itemprop="url">Vertica数据库查询优化</a>
+  </h1>
+  <p class="article-author">By
+    
+      <a href="http://yoursite.com" title="Tang Sicheng">Tang Sicheng</a>
+    </p>
+  <p class="article-time">
+    <time datetime="2015-07-30T01:50:41.000Z" itemprop="datePublished">2015-07-30</time>
+    更新日期:<time datetime="2015-07-30T11:14:31.327Z" itemprop="dateModified">2015-07-30</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		<ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#1-_定位问题"><span class="toc-number">1.</span> <span class="toc-text">1. 定位问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#2-_分析问题"><span class="toc-number">2.</span> <span class="toc-text">2. 分析问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#3-_解决问题"><span class="toc-number">3.</span> <span class="toc-text">3. 解决问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#4-_Under_the_hood"><span class="toc-number">4.</span> <span class="toc-text">4. Under the hood</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#5-_总结"><span class="toc-number">5.</span> <span class="toc-text">5. 总结</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#6-_可以研究的地方"><span class="toc-number">6.</span> <span class="toc-text">6. 可以研究的地方</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#7-_参考资料"><span class="toc-number">7.</span> <span class="toc-text">7. 参考资料</span></a></li></ol>
+		</div>
+		
+		<p>vertica是惠普公司推出的列式分布式数据库，在OLAP领域有其独到的地方，目前社区版免费，但是只能存放1T的数据。我在工作中维护的bi系统后端就是使用的vertica数据库，平时也经常需要对于数据库的查询进行一些优化，所以写下这篇博客记录一下。</p>
+<h1 id="1-_定位问题">1. 定位问题</h1><p>所谓的数据库调优、程序优化之类的工作，实际上是一个解决问题的过程，而解决问题，第一部就是需要定位问题。找到问题的手段多种多样，可以通过分析程序、监控生产上服务器的性能、定期生成数据库的负载报告等手段，而最不应该的就是通过生产上用户的反馈来反映问题了，因为到了那个时候，一切都已经晚了。具体到vertica来说，通过QUERY_PROFILES这个数据库本身提供的视图，可以找到耗时和执行的多的sql语句。以下三条sql语句，分别统计出执行次数top10，单次执行耗时top10，执行总耗时top10的sql语句。<br><figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="operator"><span class="keyword">SELECT</span></span><br><span class="line">    <span class="keyword">query</span>,</span><br><span class="line">    <span class="keyword">count</span>(*) <span class="keyword">as</span> times</span><br><span class="line"><span class="keyword">FROM</span></span><br><span class="line">    QUERY_PROFILES</span><br><span class="line"><span class="keyword">WHERE</span></span><br><span class="line">    query_type = <span class="string">'QUERY'</span></span><br><span class="line">    <span class="keyword">and</span>  query_start&gt;=<span class="string">'2015-02-13'</span></span><br><span class="line">    <span class="keyword">group</span> <span class="keyword">by</span> <span class="keyword">query</span></span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span></span><br><span class="line">    times <span class="keyword">DESC</span> <span class="keyword">limit</span> <span class="number">10</span>;</span></span><br><span class="line"><span class="operator"><span class="keyword">SELECT</span></span><br><span class="line">    <span class="keyword">query</span>,</span><br><span class="line">   <span class="keyword">avg</span>(query_duration_us) <span class="keyword">as</span> avg_cost</span><br><span class="line"><span class="keyword">FROM</span></span><br><span class="line">    QUERY_PROFILES</span><br><span class="line"><span class="keyword">WHERE</span></span><br><span class="line">    query_type = <span class="string">'QUERY'</span></span><br><span class="line">    <span class="keyword">and</span>  query_start&gt;=<span class="string">'2015-02-13'</span></span><br><span class="line">    <span class="keyword">group</span> <span class="keyword">by</span> <span class="keyword">query</span></span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span></span><br><span class="line">   avg_cost <span class="keyword">DESC</span> <span class="keyword">limit</span> <span class="number">10</span>;</span></span><br><span class="line"><span class="operator"><span class="keyword">SELECT</span></span><br><span class="line">    <span class="keyword">query</span>,</span><br><span class="line">   <span class="keyword">sum</span>(query_duration_us) <span class="keyword">as</span> total_cost</span><br><span class="line"><span class="keyword">FROM</span></span><br><span class="line">    QUERY_PROFILES</span><br><span class="line"><span class="keyword">WHERE</span></span><br><span class="line">    query_type = <span class="string">'QUERY'</span></span><br><span class="line">    <span class="keyword">and</span>  query_start&gt;=<span class="string">'2015-02-13'</span></span><br><span class="line">    <span class="keyword">group</span> <span class="keyword">by</span> <span class="keyword">query</span></span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span></span><br><span class="line">   total_cost <span class="keyword">desc</span>  <span class="keyword">limit</span> <span class="number">10</span>;</span></span><br></pre></td></tr></table></figure></p>
+<h1 id="2-_分析问题">2. 分析问题</h1><p>数据库调优，其实非常依赖于数据库本身提供的各种性能分析工具，例如执行计划解释器，跟着profile工具。在vertica中，可以通过profile，分析一条具体的sql语句。我们分析一条第一步中获取到的sql语句：<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/vertica_tuningsql_profile.png" alt="sql profile"><br>获取到这个语句的<em>transcation_id</em>和<em>statement_id</em>以后，可以通过查询系统表 <em>query_plan_profiles</em>获得语句实际的执行计划和各个阶段的执行时间，这个不同于执行计划，这是真实的执行过程。如图：<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/vertica_tuningexecute%20plan.png" alt="executeplan"><br>ql的执行是从下往上的，在这个表里面列出了PATH ID,我们可以从PATH ID从大到小一步一步分析，每一步的执行耗时。注意 <strong>PATH ID:4</strong>这一步，查询了一张事实表，cost是2K，处理了4M的数据。这一步就是我们分析的重点，因为它排在执行步骤的较前面并且处理了较多的数据。</p>
+<h1 id="3-_解决问题">3. 解决问题</h1><p>通过运行analyze_wordload，可以得到对某个表具体的优化建议。我们对，PATH ID:4的这个步骤查询的事实表，进行分析，可以得到如下优化建议：<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/vertica_tuningtuning%20advice.png" alt=""><br>其中第一条指的是，运行vertica提供的database designer工具，对这个事实表建立projection，此方法代价比较大，而且只能对特定的查询优化，这里进行第二条操作，对于此事实表进行分析，得到它的统计信息。<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/vertica_tuninganalyze.png" alt=""><br>这条命令，只会访问此表10%的数据，返回0表示成功。进行了统计信息之后，重新执行第1步和第2步，得到新的计划如下：<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/vertica_tuningnew%20plan.png" alt=""><br>可以观察到，执行步骤被调整了，原来PATH ID:4的步骤比较耗时，现在被提前到PATH ID:5了，而且执行的成本和消耗资源也不一样，以下是详细对比：<br>优化之前：</p>
+<blockquote>
+<p>Outer -&gt; STORAGE ACCESS for T330143 [Cost: 2K, Rows: 4M (NO STATISTICS)] (PATH ID: 4)</p>
+</blockquote>
+<p>优化之后：</p>
+<blockquote>
+<p>Outer -&gt; STORAGE ACCESS for T330143 [Cost: 94, Rows: 18K] (PATH ID: 5)</p>
+</blockquote>
+<p>可见，对于事实表的dt自动进行分析以后，通过dt字段获取数据，扫描的数据量从4M减少到了18k，cost从2k减少了94，整个sql的执行时间也从0.34秒降低到了0.17秒。至此，此次优化得到了目的(执行时间减少了50%)。</p>
+<h1 id="4-_Under_the_hood">4. Under the hood</h1><p>为什么Vertica数据库获取了统计信息以后，就可以优化查询？因为这张事实表是按照dt字段进行分区，但是在没有统计信息的时候，即使查询条件带上了分区字段，仍然没有利用分区信息，通过查询<em>v_monitor.query_events</em>视图可以看到sql执行过程中发生的事件。优化之前：<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/vertica_tuningold%20events.png" alt=""><br>优化之后<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/vertica_tuningnew%20event.png" alt=""><br><strong>其中PARTITIONS_ELIMINATED的描述Some storage containers will not be processed because they contain no relevant data说明分区信息起作用了。</strong></p>
+<h1 id="5-_总结">5. 总结</h1><p>简单的vertica优化，一步的步骤如下：</p>
+<ol>
+<li>收集sql统计信息，找出执行次数很多或者执行时间久的sql语句。</li>
+<li>对要优化是sql进行profile，拿到此次执行profile的transaction_id和statement_id。</li>
+<li>利用vertica本身提供的工具和系统表，例如Datab Designer、Workload Analyzer、query_plan_profiles、v_monitor.query_events得到sql的执行计划和具体的优化建议。<br>对于查询的优化，从简单到复杂依次为：更新统计信息，运行database designer自动在表上建立projection（类似于物理视图）、手工建立projection 。</li>
+</ol>
+<h1 id="6-_可以研究的地方">6. 可以研究的地方</h1><p>同样是分区表， 为什么在oracle中如果查询条件带上了分区健，就能正确的利用分区信息进行优化，而且vertica确不行呢？我猜可能有以下几点可能</p>
+<ol>
+<li>建表方式不对，所谓的分区并没有起到作用。（类似于vertica中的主键约束）</li>
+<li>vertica本身不支持，需要利用额外的统计信息去做优化。</li>
+<li>因为应用是OLAP场景，每天导入的数据量过大，所以统计信息很快失效。</li>
+</ol>
+<h1 id="7-_参考资料">7. 参考资料</h1><p><a href="http://www.vertica.com/hp-vertica-documentation/hp-vertica-analytics-platform-7-0-x-product-documentation/" target="_blank" rel="external">HP Vertica Analytics Platform 7.0.x Product Documentation</a></p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/数据库技术/">数据库技术</a>
+  </div>
+
+
+
+
+<div class="article-share" id="share">
+
+  <div data-url="http://yoursite.com/2015/07/30/vertica-tuning/" data-title="Vertica数据库查询优化 | 我是一名程序员" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2015/07/30/scala-sql/" title="用scala实现一个sql执行引擎">
+  <strong>PREVIOUS:</strong><br/>
+  <span>
+  用scala实现一个sql执行引擎</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2015/07/29/edit-distance/"  title="Edit Distance问题在两种编程范式下的求解">
+ <strong>NEXT:</strong><br/> 
+ <span>Edit Distance问题在两种编程范式下的求解
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+  <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#1-_定位问题"><span class="toc-number">1.</span> <span class="toc-text">1. 定位问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#2-_分析问题"><span class="toc-number">2.</span> <span class="toc-text">2. 分析问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#3-_解决问题"><span class="toc-number">3.</span> <span class="toc-text">3. 解决问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#4-_Under_the_hood"><span class="toc-number">4.</span> <span class="toc-text">4. Under the hood</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#5-_总结"><span class="toc-number">5.</span> <span class="toc-text">5. 总结</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#6-_可以研究的地方"><span class="toc-number">6.</span> <span class="toc-text">6. 可以研究的地方</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#7-_参考资料"><span class="toc-number">7.</span> <span class="toc-text">7. 参考资料</span></a></li></ol>
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/scala/" title="scala">scala<sup>1</sup></a></li>
+		
+			<li><a href="/tags/数据库技术/" title="数据库技术">数据库技术<sup>1</sup></a></li>
+		
+			<li><a href="/tags/算法/" title="算法">算法<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font clearfix">
+		
+		<a href="http://weibo.com/jadetang" target="_blank" title="weibo"></a>
+		
+		
+		
+		<a href="https://github.com/jadetang" target="_blank" title="github"></a>
+		
+		
+		
+        <a href="https://www.linkedin.com/in/tangsicheng" target="_blank" title="linkedin"></a>
+        
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/A-limon/pacman" target="_blank" title="Pacman">Pacman</a> © 2015 
+		
+		<a href="http://yoursite.com" target="_blank" title="Tang Sicheng">Tang Sicheng</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.1.0.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="#textlogo" class="article-back-to-top" title="Top"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+  </body>
+</html>

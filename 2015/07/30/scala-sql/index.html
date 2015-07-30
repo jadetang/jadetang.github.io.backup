@@ -1,0 +1,334 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  
+    <title>用scala实现一个sql执行引擎 | 我是一名程序员</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3, minimum-scale=1">
+    
+    <meta name="author" content="Tang Sicheng">
+    
+    <meta name="description" content="Motivation本文总结了一个scala sql这个项目的实现思路，所有的代码托管在github上。在实时计算中，通常是从队列中收集原始数据，这种原始数据在内存中通常是一个java pojo，把数据收集过来以后，通常会把数据落地到数据库，供后面的ETL使用。举个一个简单的例子，对一个游戏来说，为">
+    
+    
+    
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/pacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/pacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
+</head>
+
+  <body>
+    <header>
+      <div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="我是一名程序员" title="我是一名程序员"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="我是一名程序员">我是一名程序员</a></h1>
+				<h2 class="blog-motto"></h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+					<li>
+					
+					<form class="search" action="//google.com/search" method="get" accept-charset="utf-8">
+						<label>Search</label>
+						<input type="text" id="search" name="q" autocomplete="off" maxlength="20" placeholder="搜索" />
+						<input type="hidden" name="q" value="site:yoursite.com">
+					</form>
+					
+					</li>
+				</ul>
+			</nav>			
+</div>
+
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2015/07/30/scala-sql/" title="用scala实现一个sql执行引擎" itemprop="url">用scala实现一个sql执行引擎</a>
+  </h1>
+  <p class="article-author">By
+    
+      <a href="http://yoursite.com" title="Tang Sicheng">Tang Sicheng</a>
+    </p>
+  <p class="article-time">
+    <time datetime="2015-07-30T02:52:39.000Z" itemprop="datePublished">2015-07-30</time>
+    更新日期:<time datetime="2015-07-30T11:16:11.999Z" itemprop="dateModified">2015-07-30</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		<ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Motivation"><span class="toc-number">1.</span> <span class="toc-text">Motivation</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Parsing_Sql"><span class="toc-number">2.</span> <span class="toc-text">Parsing Sql</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Execute"><span class="toc-number">3.</span> <span class="toc-text">Execute</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Summary"><span class="toc-number">4.</span> <span class="toc-text">Summary</span></a></li></ol>
+		</div>
+		
+		<h1 id="Motivation">Motivation</h1><p>本文总结了一个scala sql这个项目的实现思路，所有的代码托管在<a href="https://github.com/jadetang/scala_sql" target="_blank" rel="external">github</a>上。<br>在实时计算中，通常是从队列中收集原始数据，这种原始数据在内存中通常是一个java pojo，把数据收集过来以后，通常会把数据落地到数据库，供后面的ETL使用。举个一个简单的例子，对一个游戏来说，为了统计某个游戏，某个服务器的登陆注册等事件，原始数据对应的java pojo可能会是这样:<br><figure class="highlight vbscript"><table><tr><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> Event &#123;</span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">String</span> userName;</span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">String</span> game;</span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">String</span> <span class="built_in">server</span>;</span><br><span class="line">    <span class="keyword">private</span> <span class="built_in">String</span> event;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>在生产上，通过一个队列每秒钟能收集5-7万数据，在这种情况下，通常没有办法实时的去做一个些统计操作。假设你如果要按照游戏和服务器分组统计出登陆的人次是多少，如果是在数据库中，对应的SQL大致如下：<br><figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="operator"><span class="keyword">select</span> <span class="keyword">count</span>(user_name) <span class="keyword">from</span> <span class="keyword">event</span> <span class="keyword">group</span> <span class="keyword">by</span> name,sever <span class="keyword">where</span> <span class="keyword">event</span> = <span class="string">'login'</span></span></span><br></pre></td></tr></table></figure></p>
+<p>在流式计算领域，<a href="http://storm.apache.org/" target="_blank" rel="external">storm</a>是一个流行的分布式计算框架，能够很方便的进行流式计算。对于上面那个数据需求，通过storm提供的高层级的api(<a href="http://storm.apache.org/documentation/Trident-API-Overview.html" target="_blank" rel="external">Trident</a>)是可以完成的，但是如果要计算一些其他的指标，则需要重新编码，然后部署，不能做到7*24小时不间断的计算。所以如果有一个运行在内存中的sql执行引擎，可以在内存中对于一批收集过来的数据执行sql计算的时候，无疑能够非常快的实时计算出结果。另外由于“sql”在程序中就是一个字符串，可以动态的从任何数据源读取，这样新增计算指标的时候，只需要在数据源中添加一条记录，而不需要重启storm集群，也不需要编码。<br>对于这样的一个内存计算引擎，java版的接口定义如下：<br><figure class="highlight dart"><table><tr><td class="code"><pre><span class="line">public <span class="built_in">List</span>&lt;<span class="built_in">Map</span>&lt;<span class="built_in">String</span>,<span class="built_in">Object</span>&gt;&gt; query(<span class="built_in">List</span>&lt;<span class="built_in">Map</span>&lt;<span class="built_in">String</span>,<span class="built_in">Object</span>&gt;&gt; data,<span class="built_in">String</span> sql)</span><br></pre></td></tr></table></figure></p>
+<p>我们期望达到的效果是,当data的数据和sql的数据如下时，经过计算，能够得到类似于这样的结果:<br><figure class="highlight groovy"><table><tr><td class="code"><pre><span class="line">data =</span><br><span class="line">[<span class="string">username:</span>user1,<span class="string">game:</span>lol,<span class="string">server:</span>s1,<span class="string">event:</span>login]</span><br><span class="line">[<span class="string">username:</span>user2,<span class="string">game:</span>dota2,<span class="string">server:</span>s2,<span class="string">event:</span>register]</span><br><span class="line">[<span class="string">username:</span>user3,<span class="string">game:</span>lol,<span class="string">server:</span>s2,<span class="string">event:</span>login]</span><br><span class="line">[<span class="string">username:</span>user4,<span class="string">game:</span>dota2,<span class="string">server:</span>s3,<span class="string">event:</span>register]</span><br><span class="line">[<span class="string">username:</span>user5,<span class="string">game:</span>lol,<span class="string">server:</span>s10,<span class="string">event:</span>login]</span><br><span class="line">[<span class="string">username:</span>user6,<span class="string">game:</span>dota2,<span class="string">server:</span>s1,<span class="string">event:</span>login]</span><br><span class="line">[<span class="string">username:</span>user7,<span class="string">game:</span>lol,<span class="string">server:</span>s1,<span class="string">event:</span>login]</span><br><span class="line">[<span class="string">username:</span>user8,<span class="string">game:</span>lol,<span class="string">server:</span>s1,<span class="string">event:</span>login]</span><br><span class="line">[<span class="string">username:</span>user9,<span class="string">game:</span>lol,<span class="string">server:</span>s1,<span class="string">event:</span>login]</span><br><span class="line">----------------</span><br><span class="line">sql = select count(*) <span class="keyword">as</span> loginNum, game,server from event group by game,server where event=<span class="string">'login'</span> </span><br><span class="line">----------------</span><br><span class="line">result = </span><br><span class="line">[<span class="string">loginNum:</span><span class="number">1</span>,<span class="string">game:</span>lol,<span class="string">server:</span>s2]</span><br><span class="line">[<span class="string">loginNum:</span><span class="number">4</span>,<span class="string">game:</span>lol,<span class="string">server:</span>s1]</span><br><span class="line">[<span class="string">loginNum:</span><span class="number">1</span>,<span class="string">game:</span>lol,<span class="string">server:</span>s10]</span><br><span class="line">[<span class="string">loginNum:</span><span class="number">1</span>,<span class="string">game:</span>dota2,<span class="string">server:</span>s1]</span><br><span class="line">----------------</span><br></pre></td></tr></table></figure></p>
+<h1 id="Parsing_Sql">Parsing Sql</h1><p>程序中要把一个字符串当作一个sql语句处理,实际上你定义了一种自己的编程语言，即DSL(Domain Specific Language-特定领域语言)。关于DSL的论述很多，我推荐两本书，一本是Martin大叔的<a href="http://martinfowler.com/books/dsl.html" target="_blank" rel="external">Domain Specific Language</a>，另外一个本是<a href="http://www.manning.com/ghosh/" target="_blank" rel="external">DSL in Action</a>。之所以选择scala来实现，是因为scala语言中内置了对DSL的支持，可以很方便的实现一个自己的Parser,通过此Parser,可以解析你的DSL脚本(此处就是sql语句)，得到你想要的中间结果，通常我们将中间结果称为<a href="https://en.wikipedia.org/wiki/Abstract_syntax_tree" target="_blank" rel="external">AST(Abstract syntax tree)</a>。 </p>
+<p>类似于select {…} from {…} group by {…}  where {…}order by{…} limit {…}形式的sql语句，我将它转化成如下类型的AST：<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/scala_sql_sql_ast.jpg" alt=""><br>解析器的入口函数为:<br><figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">select</span>:</span> Parser[SelectStmt] = <span class="string">"select"</span> ~&gt; projectionStatements ~ fromStatements ~ opt(groupStatements) ~ opt(whereExpr) ~ opt(orderByExpr) ~ opt(limit) ~ opt(<span class="string">";"</span>) ^^ &#123;</span><br><span class="line">    case p ~ f ~ g ~ w ~ o ~ l ~ end =&gt; SelectStmt(p, f, w, g, o, l)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure></p>
+<p>其中，fromStatements，groupStatements，whereExpr等是一个个单独的解析器，通过scala中已经提供的parser combinators(解析器组合子)，例如(~&gt;,~,opt()…)等，将单独的解析器组合起来，可以得到更复杂的解析器。 </p>
+<p>类似于lego积木，你编写一个解析类似于lego积木，你编写一个解析器，parserA, 只能解析某段特殊的文本,这个段文本的模式我们用<em>patternA</em>来表示。通过组合子 <em>rep1sep（“,”,parserA）</em>,你就得到了一个新的解析器，这个解析器能解析的partern为 <em>patternA[,patternA][,patternA][,patternA]…</em> </p>
+<p>例如sql语句中的group by子句，不考虑having语法的话，大致格式是这样的 </p>
+<blockquote>
+<p>group by [tableName.]coulumn1,[tableName.]coulumn1,[tableName.]coulumn1 </p>
+</blockquote>
+<p>可见<em>[tableName.]coulumn</em>这种格式的文本，可以是基本的pattern，于是可以写出一个解析器来解析这种格式的文本:<br><figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">selectIdent</span>:</span> Parser[SqlProj] = &#123;</span><br><span class="line">    ident ~ opt(<span class="string">"."</span> ~&gt; ident) ^^ &#123;</span><br><span class="line">      case table ~ Some(b: String) =&gt; FieldIdent(Option(table), b)</span><br><span class="line">      case column ~ <span class="keyword">None</span> =&gt; FieldIdent(<span class="keyword">None</span>, column)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure></p>
+<p>这个函数中ident指得的标识符，opt()表示的是可以有也可以没有，那么这个解析器解析的文本就可以有如下形式：标示符.标示符|标示符，那么通过rep1sep的组合子就能得到解析group by字句的解析器：<br><figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">groupStatements</span>:</span> Parser[SqlGroupBy] = <span class="string">"group"</span> ~&gt; <span class="string">"by"</span> ~&gt; rep1sep(selectIdent, <span class="string">","</span>) ^^ &#123;</span><br><span class="line">    case keys =&gt; SqlGroupBy(keys)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure></p>
+<p>利用这种机制，可以从简单到复杂，从下到上的完成一个sql的解析，得到程序能够理解的AST。</p>
+<h1 id="Execute">Execute</h1><p>拿到sql语句对应AST之后，就应该根据AST对于输入的数据进行计算、转换，得到所需要的结果。。之前说到，为什么选择scala作为这个引擎的实现，之一是scala提供了方便的DSL实现支持，其二是因为作为一门函数式编程语言，scala提供了丰富对于集合操作的函数。此外，函数在scala中是一个独立的类型，所以能够把现有的函数进行组合，得到更为强大的函数（和上一节提到的用解析组合子组合已有的解析器得到更强大的解析器一样）。</p>
+<p>首先，我们需要弄清楚普通sql语句的执行顺序，一般来说，sql的书写顺序为:<br>SELECT[DISTINCT] -&gt; FROM -&gt; WHERE -&gt; GROUP BY -&gt; HAVING -&gt; UNION -&gt; ORDER BY<br>但是执行顺序为<br>FROM -&gt; WHERE -&gt; GROUP BY -&gt; HAVING -&gt; SELECT -&gt; DISTINCT -&gt; UNION -&gt; ORDER BY</p>
+<p>本次实现的sql执行不支持join，所以省去了union部分，但是大致顺序差不多，如果把一个List<map>想象成一个数据库的表，那么执行顺序可以用下图所示，图中标绿色的箭头表示可以并发执行，聚合函数的执行是不能并发的，但是因为已经把数据给分组了，故可以在更高的一个层次并发。<br><img src="http://7xkm8t.com1.z0.glb.clouddn.com/scala_sql_engine.png" alt=""><br>了解了大致的执行流程，下面说一下各个流程执行所用到的函数。</map></p>
+<ol>
+<li>where子句<br>where子句的执行，利用了 filter函数，将不符合条件的数据给过滤掉。举个例子，下面这个段代码，将列表中的奇数给过滤掉。<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line">scala&gt; val L = <span class="function"><span class="title">List</span><span class="params">(<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>,<span class="number">6</span>)</span></span></span><br><span class="line">L: List[Int] = <span class="function"><span class="title">List</span><span class="params">(<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>)</span></span></span><br><span class="line">scala&gt; L <span class="function"><span class="title">filter</span><span class="params">(_%<span class="number">2</span>==<span class="number">0</span>)</span></span></span><br><span class="line">res2: List[Int] = <span class="function"><span class="title">List</span><span class="params">(<span class="number">2</span>, <span class="number">4</span>, <span class="number">6</span>)</span></span></span><br></pre></td></tr></table></figure>
+</li>
+</ol>
+<p>对每个元素进行判断这个步骤其实是可以并发执行的，你只需要这样写，就能进行安全的并发操作。<br><figure class="highlight stata"><table><tr><td class="code"><pre><span class="line"><span class="keyword">scala</span>&gt; <span class="keyword">L</span>.par.filter(_%2==0).toList</span><br><span class="line">res4: <span class="keyword">List</span>[Int] = <span class="keyword">List</span>(2, 4, 6)</span><br></pre></td></tr></table></figure></p>
+<p>在我的实现中，实现where的函数为<br><figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">where</span><span class="params">(where: Option[SqlExpr])</span>:</span> Table = &#123;</span><br><span class="line">      where match &#123;</span><br><span class="line">        case <span class="keyword">None</span> =&gt; table</span><br><span class="line">        case Some(x: SqlExpr) =&gt; table filter (evalWhereEachRow(_, x))</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>其中evalWhereEachRow(_,x)是另外一个函数，第一个参数是table中的一列，即一个Map对象，第二个参数是由sql解析得到的AST中，对应where子句的部分。</p>
+<ol>
+<li>group by子句<br>scala中也提供了对于集合的groupBy操作，接着上个例子<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line">scala&gt; val L = <span class="function"><span class="title">List</span><span class="params">(<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>,<span class="number">6</span>)</span></span></span><br><span class="line">L: List[Int] = <span class="function"><span class="title">List</span><span class="params">(<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>)</span></span></span><br><span class="line">scala&gt; L <span class="function"><span class="title">groupBy</span><span class="params">(_%<span class="number">2</span>)</span></span></span><br><span class="line">res6: scala<span class="class">.collection</span><span class="class">.immutable</span><span class="class">.Map</span>[Int,List[Int]] = <span class="function"><span class="title">Map</span><span class="params">(<span class="number">1</span> -&gt; List(<span class="number">1</span>, <span class="number">3</span>, <span class="number">5</span>)</span></span>, <span class="number">0</span> -&gt; <span class="function"><span class="title">List</span><span class="params">(<span class="number">2</span>, <span class="number">4</span>, <span class="number">6</span>)</span></span>)</span><br></pre></td></tr></table></figure>
+</li>
+</ol>
+<p>上面这个函数，把L这个list根据奇偶分组。在scala _sql引擎中，实现groupBy的函数为<br><figure class="highlight perl"><table><tr><td class="code"><pre><span class="line">def evalGroupBy(table: Table, groupby: SqlGroupBy): Se<span class="string">q[Table]</span> = &#123;</span><br><span class="line">    val <span class="keyword">keys</span>: Se<span class="string">q[String]</span> = groupby.<span class="keyword">keys</span> <span class="keyword">map</span> &#123;</span><br><span class="line">      case <span class="keyword">x</span>: <span class="string">FieldIdent =&gt;</span> <span class="keyword">x</span>.name</span><br><span class="line">    &#125;</span><br><span class="line">    table.groupBy(<span class="string">row =&gt;</span> <span class="keyword">keys</span>.<span class="keyword">map</span>(row(<span class="number">_</span>))).<span class="keyword">map</span>(<span class="number">_</span>._2).toSeq</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure></p>
+<p>可见，只需要按照sql执行的步骤，一步步的把sql的执行过程所需要的函数给实现，然后把这些函数给拼装起来，就能得到一个完整的sql引擎。</p>
+<h1 id="Summary">Summary</h1><p>DSL主要有两种，内部DSL和外部DSL，对于外部DSL，需要一个解析器来解析DSL的脚本，得到能够让程序处理的数据结构，这种数据结构通常是一种AST。实现需要的解析器，大体有两种方式：</p>
+<ol>
+<li>手工写一个，例如<a href="http://www.oschina.net/p/druid/" target="_blank" rel="external">druid</a>中的sql解析模块。</li>
+<li>利用<a href="http://www.antlr.org/" target="_blank" rel="external">ANTRL</a>等解析生成器，通过编写语法规则，生成一个解析器。<br>近年来随着函数式编程慢慢得到工业界的关注，利用parser combinator(解析组合子)的方式来编写解析器实现DSL也进入了大众视野。</li>
+</ol>
+  
+	</div>
+		<footer class="article-footer clearfix">
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/scala/">scala</a>
+  </div>
+
+
+
+
+<div class="article-share" id="share">
+
+  <div data-url="http://yoursite.com/2015/07/30/scala-sql/" data-title="用scala实现一个sql执行引擎 | 我是一名程序员" data-tsina="null" class="share clearfix">
+  </div>
+
+</div>
+</footer>   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+
+<div class="next">
+<a href="/2015/07/30/vertica-tuning/"  title="Vertica数据库查询优化">
+ <strong>NEXT:</strong><br/> 
+ <span>Vertica数据库查询优化
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+  <ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Motivation"><span class="toc-number">1.</span> <span class="toc-text">Motivation</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Parsing_Sql"><span class="toc-number">2.</span> <span class="toc-text">Parsing Sql</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Execute"><span class="toc-number">3.</span> <span class="toc-text">Execute</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Summary"><span class="toc-number">4.</span> <span class="toc-text">Summary</span></a></li></ol>
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			<li><a href="/tags/scala/" title="scala">scala<sup>1</sup></a></li>
+		
+			<li><a href="/tags/数据库技术/" title="数据库技术">数据库技术<sup>1</sup></a></li>
+		
+			<li><a href="/tags/算法/" title="算法">算法<sup>1</sup></a></li>
+		
+		</ul>
+</div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+	
+	<div class="line">
+		<span></span>
+		<div class="author"></div>
+	</div>
+	
+	
+	<div class="social-font clearfix">
+		
+		<a href="http://weibo.com/jadetang" target="_blank" title="weibo"></a>
+		
+		
+		
+		<a href="https://github.com/jadetang" target="_blank" title="github"></a>
+		
+		
+		
+        <a href="https://www.linkedin.com/in/tangsicheng" target="_blank" title="linkedin"></a>
+        
+	</div>
+		<p class="copyright">Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/A-limon/pacman" target="_blank" title="Pacman">Pacman</a> © 2015 
+		
+		<a href="http://yoursite.com" target="_blank" title="Tang Sicheng">Tang Sicheng</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.1.0.min.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else
+    {
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      h  = $('article h2')
+      ah = $('article h2'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  if(ah.length==0){
+    t.css('display','none');
+  }else{
+    c.click(function(){
+      ta.css('display', 'block').addClass('fadeIn');
+    });
+    o.click(function(){
+      ta.css('display', 'none');
+    });
+    $(window).scroll(function(){
+      ta.css("top",Math.max(140,320-$(this).scrollTop()));
+    });
+  };
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina');
+  var html = [
+  '<a href="#" class="overlay" id="qrcode"></a>',
+  '<div class="qrcode clearfix"><span>扫描二维码分享到微信朋友圈</span><a class="qrclose" href="#share"></a><strong>Loading...Please wait</strong><img id="qrcode-pic" data-src="http://s.jiathis.com/qrcode.php?url=' + encodedUrl + '"/></div>',
+  '<a href="#textlogo" class="article-back-to-top" title="Top"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="QRcode"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="Weibo"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+  $('.article-share-qrcode').click(function(){
+    var imgSrc = $('#qrcode-pic').attr('data-src');
+    $('#qrcode-pic').attr('src', imgSrc);
+    $('#qrcode-pic').load(function(){
+        $('.qrcode strong').text(' ');
+    });
+  });
+});     
+</script>
+
+
+
+
+
+
+  </body>
+</html>
